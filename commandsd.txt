@@ -1,0 +1,6 @@
+python aerial.py /path/to/your/music --no-recursive
+
+
+
+
+python aerial.py /path/to/your/music
