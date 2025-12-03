@@ -1,0 +1,10 @@
+^D:\CODE\AERIAL_PLAYER\CLI\AERIAL_PLAYER_CPP\BUILD\CMAKEFILES\A8BB63DCE7D0A2EC7CAF796B527C1A53\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SD:/Code/aerial_player/cli/aerial_player_cpp -BD:/Code/aerial_player/cli/aerial_player_cpp/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file D:/Code/aerial_player/cli/aerial_player_cpp/build/aerial_player_cpp.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
