@@ -1,12 +1,9 @@
 #pragma once
-
 #include <string>
 #include <vector>
 
 class Playlist {
 public:
-    Playlist() = default;
-
     void addTrack(const std::string& path);
     const std::string& current() const;
     const std::string& next();
@@ -14,8 +11,13 @@ public:
     bool empty() const;
     size_t size() const;
     size_t index() const;
+
     std::string peekNext() const;
 
+    // NEW: access + search + jump
+    const std::string& trackAt(size_t i) const;
+    std::vector<size_t> search(const std::string& query) const;
+    void jumpTo(size_t i);
 
 private:
     std::vector<std::string> tracks_;

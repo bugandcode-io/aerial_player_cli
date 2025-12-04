@@ -26,6 +26,11 @@ public:
 
     std::string nowPlaying() const;
 
+        // New helpers:
+    double getPositionSeconds() const;
+    bool seekTo(double seconds);
+    bool seekBy(double deltaSeconds);
+
 private:
     std::shared_ptr<Playlist> playlist_;
     bool initialized_ = false;

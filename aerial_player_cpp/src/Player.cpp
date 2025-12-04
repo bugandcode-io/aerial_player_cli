@@ -139,3 +139,45 @@ std::string Player::nowPlaying() const {
     if (!playlist_ || playlist_->empty()) return {};
     return playlist_->current();
 }
+
+
+
+double Player::getPositionSeconds() const {
+    if (!initialized_) return 0.0;
+
+    double pos = Mix_GetMusicPosition(nullptr);  // available in your SDL_mixer
+    if (pos < 0.0) return 0.0;
+    return pos;
+}
+
+// double Player::getDurationSeconds() const {
+//     if (!initialized_) return 0.0;
+//     double dur = Mix_GetMusicDuration(nullptr);  // SDL_mixer 2.6+
+//     if (dur < 0.0) return 0.0;
+//     return dur;
+// }
+
+bool Player::seekTo(double seconds) {
+    if (!initialized_) return false;
+    if (seconds < 0.0) seconds = 0.0;
+
+    if (Mix_SetMusicPosition(seconds) < 0) {
+        std::cerr << "[SDL_mixer] seekTo failed: " << Mix_GetError() << "\n";
+        return false;
+    }
+
+    paused_ = false; // after seek, treat as playing
+    return true;
+}
+
+bool Player::seekBy(double deltaSeconds) {
+    if (!initialized_) return false;
+
+    double cur = getPositionSeconds();
+    double target = cur + deltaSeconds;
+    if (target < 0.0) target = 0.0;
+
+    // We don’t know exact duration here; let SDL_mixer clamp if needed.
+    return seekTo(target);
+}
+

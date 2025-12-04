@@ -53,3 +53,11 @@ echo *********************************************
 
 endlocal
 pause
+
+
+
+REM Copy fresh build to dist\
+if not exist dist mkdir dist
+copy /y build\Release\aerial.exe dist\aerial.exe >nul
+echo Deployed to dist\aerial.exe
+pause
