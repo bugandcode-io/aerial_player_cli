@@ -11,6 +11,8 @@
 
 #include "Player.hpp"
 #include "Playlist.hpp"
+#include "Server.hpp"
+
 
 namespace fs = std::filesystem;
 
@@ -92,6 +94,12 @@ std::shared_ptr<Playlist> buildPlaylistFromFolder(const std::string& folderPath)
 // ───────────────────────────────
 
 int main(int argc, char* argv[]) {
+
+    AerialConfig cfg = load_config();
+
+    std::cout << "[CONFIG] DB Path: " << cfg.db_path << "\n";
+    std::cout << "[CONFIG] Server Port: " << cfg.port << "\n";
+
     try {
         if (argc < 2) {
             std::cout << "Usage: aerial <music_folder>\n";
@@ -121,6 +129,10 @@ int main(int argc, char* argv[]) {
             std::cerr << "Failed to start playback.\n";
             return 1;
         }
+        
+        // 🔥 Start TCP control server in background
+        start_control_server(player, playlist);
+        start_http_server(player, playlist, 8080);   
 
         constexpr const char* AERIAL_VERSION = "0.1.3-dev (CLI)";
         std::cout << "Aerial Player " << AERIAL_VERSION << "\n\n";

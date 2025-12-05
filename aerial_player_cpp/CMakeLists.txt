@@ -13,17 +13,26 @@ endif()
 find_package(SDL2 CONFIG REQUIRED)
 find_package(SDL2_mixer CONFIG REQUIRED)
 
+# Platform-specific sources (icon/resource only on Windows)
+set(PLATFORM_SOURCES)
+if (WIN32)
+    list(APPEND PLATFORM_SOURCES res/aerial.rc)
+endif()
+
 add_executable(aerial
     src/main.cpp
     src/Player.cpp
     src/Playlist.cpp
     src/UI.cpp
-	res/aerial.rc
+    src/Server.cpp
+    src/json.hpp
+    src/Config.cpp
+    src/Config.hpp
+
+    ${PLATFORM_SOURCES}
 )
 
 # Link against SDL2 and SDL2_mixer imported targets from vcpkg
-# SDL2_mixer can be either SDL2_mixer::SDL2_mixer (dynamic)
-# or SDL2_mixer::SDL2_mixer-static (static), depending on triplet.
 target_link_libraries(aerial PRIVATE
     SDL2::SDL2
     SDL2::SDL2main
@@ -31,3 +40,10 @@ target_link_libraries(aerial PRIVATE
         SDL2_mixer::SDL2_mixer,
         SDL2_mixer::SDL2_mixer-static>
 )
+
+# Extra libs for Windows (Winsock)
+if (WIN32)
+    target_link_libraries(aerial PRIVATE Ws2_32)
+    target_include_directories(aerial PRIVATE src)
+
+endif()
