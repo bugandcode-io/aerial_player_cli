@@ -1,6 +1,10 @@
 #include "UI.hpp"
+#include "Playlist.hpp"
 #include <iostream>
 #include <filesystem>
+#include <cctype>  
+#include <sstream>
+
 
 #ifdef _WIN32
 #include <windows.h>
@@ -12,31 +16,37 @@
 std::string extractTitle(const std::string& fullPath) {
     if (fullPath.empty()) return "(none)";
 
-    std::filesystem::path p(fullPath);
-    std::string name = p.filename().string();
+    std::filesystem::path p = std::filesystem::u8path(fullPath);
+    std::string name = p.filename().u8string();
+    
 
     // Remove extension
     size_t dot = name.rfind('.');
     if (dot != std::string::npos)
         name = name.substr(0, dot);
 
-    // Strip "01 - " or "01 " prefixes
-    if (name.size() > 4 &&
-        std::isdigit(name[0]) &&
-        std::isdigit(name[1]) &&
-        (name[2] == '-' || name[2] == '.') &&
-        name[3] == ' ') {
-        name = name.substr(4);
-    }
-    else if (name.size() > 3 &&
-             std::isdigit(name[0]) &&
-             std::isdigit(name[1]) &&
-             name[2] == ' ') {
-        name = name.substr(3);
+    // Strip numeric prefixes like "01 - ", "07. ", "03 "
+    if (name.size() > 2 &&
+        std::isdigit((unsigned char)name[0]) &&
+        std::isdigit((unsigned char)name[1]))
+    {
+        size_t pos = 2;
+
+        // Optional punctuation
+        if (pos < name.size() && (name[pos] == '-' || name[pos] == '.' || name[pos] == '_'))
+            pos++;
+
+        // Optional space
+        if (pos < name.size() && name[pos] == ' ')
+            pos++;
+
+        name = name.substr(pos);
     }
 
     return name;
 }
+
+
 
 // ==========================================
 //  Pretty UI Box (green + yellow)
@@ -90,4 +100,122 @@ void printNowPlayingBox(const std::string& nowPath,
 #endif
 
     std::cout << line << "\n";
+}
+
+
+
+void updateNowPlayingUI(Playlist& playlist) {
+    std::string nowPath;
+    std::string nextPath;
+
+    if (!playlist.empty()) {
+        nowPath = playlist.current();     // get current track safely
+        nextPath = playlist.peekNext();   // automatically wraps around
+    }
+
+    printNowPlayingBox(nowPath, nextPath);
+}
+
+
+std::string renderNowPlayingBox(const std::string& nowPath,
+                                const std::string& nextPath)
+{
+    const std::string line(69, '*');
+
+    std::string now  = extractTitle(nowPath);
+    std::string next = nextPath.empty()
+        ? "(end of playlist)"
+        : extractTitle(nextPath);
+
+    std::ostringstream out;
+    out << line << "\n";
+
+#ifdef _WIN32
+    // For sockets, don't bother with Windows color codes;
+    // a telnet client might not understand them anyway.
+    out << "****    Now Playing: " << now  << "\n";
+    out << "****\n";
+    out << "****    Up Next:     " << next << "\n";
+#else
+    // If you want ANSI colors over telnet you can keep these:
+    out << "****    Now Playing: \033[32m" << now  << "\033[0m\n";
+    out << "****\n";
+    out << "****    Up Next:     \033[33m" << next << "\033[0m\n";
+#endif
+
+    out << line << "\n";
+    return out.str();
+}
+
+
+
+std::string renderNowPlayingBoxPlain(const std::string& nowPath,
+                                     const std::string& nextPath)
+{
+    const std::string line(69, '*');
+
+    std::string now  = nowPath.empty()  ? "(none)"            : extractTitle(nowPath);
+    std::string next = nextPath.empty() ? "(end of playlist)" : extractTitle(nextPath);
+
+    std::ostringstream out;
+
+    // out << "\r\n=== TELNET UI TEST ===\r\n";   // 👈 BIG TEST MARKER
+
+    out << line << "\r\n";
+    out << "****    Now Playing: " << now  << "\r\n";
+    out << "****\r\n";
+    out << "****    Up Next:     " << next << "\r\n";
+    out << line << "\r\n";
+
+    return out.str();
+}
+
+std::string renderProgressBar(double positionSeconds)
+{
+    const int barWidth = 40;
+
+    int posInt = static_cast<int>(positionSeconds);
+    if (posInt < 0) posInt = 0;
+
+    int filled = posInt % (barWidth + 1);
+    if (filled > barWidth) filled = barWidth;
+
+    std::ostringstream out;
+
+    out << "[";
+    out << std::string(filled, '=');
+    if (filled < barWidth) {
+        out << ">";
+        out << std::string(barWidth - filled - 1, ' ');
+    } else {
+        out << std::string(barWidth - filled, ' ');
+    }
+    out << "]";
+    out << " " << posInt << "s\r\n";
+
+    return out.str();
+}
+
+
+std::string renderProgressBarLine(double seconds)
+{
+    const int barWidth = 40;
+
+    int posInt = static_cast<int>(seconds);
+    int filled = posInt % (barWidth + 1);
+    if (filled > barWidth) filled = barWidth;
+
+    std::string bar = "[";
+    bar += std::string(filled, '=');
+    if (filled < barWidth) {
+        bar += ">";
+        bar += std::string(barWidth - filled - 1, ' ');
+    } else {
+        bar += std::string(barWidth - filled, ' ');
+    }
+    bar += "]";
+
+    std::ostringstream oss;
+    oss << bar << " " << posInt << "s\r\n";
+    return oss.str();
 }

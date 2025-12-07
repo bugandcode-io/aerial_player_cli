@@ -13,6 +13,9 @@ endif()
 find_package(SDL2 CONFIG REQUIRED)
 find_package(SDL2_mixer CONFIG REQUIRED)
 
+# 👇 THIS is what vcpkg told you in the message
+find_package(unofficial-sqlite3 CONFIG REQUIRED)
+
 # Platform-specific sources (icon/resource only on Windows)
 set(PLATFORM_SOURCES)
 if (WIN32)
@@ -28,22 +31,24 @@ add_executable(aerial
     src/json.hpp
     src/Config.cpp
     src/Config.hpp
-
+    src/DB.cpp
+    src/DB.hpp
+    # You usually don't put config.json as a source; it’s just a data file.
     ${PLATFORM_SOURCES}
 )
 
-# Link against SDL2 and SDL2_mixer imported targets from vcpkg
+# Link against SDL2, SDL2_mixer, and sqlite3 from vcpkg
 target_link_libraries(aerial PRIVATE
     SDL2::SDL2
     SDL2::SDL2main
     $<IF:$<TARGET_EXISTS:SDL2_mixer::SDL2_mixer>,
         SDL2_mixer::SDL2_mixer,
         SDL2_mixer::SDL2_mixer-static>
+    unofficial::sqlite3::sqlite3
 )
 
 # Extra libs for Windows (Winsock)
 if (WIN32)
     target_link_libraries(aerial PRIVATE Ws2_32)
     target_include_directories(aerial PRIVATE src)
-
 endif()

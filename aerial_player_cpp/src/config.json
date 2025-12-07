@@ -1,0 +1,5 @@
+{
+  "db_path": "D:/Code/aerial_player/cli/aerial.db",
+  "port": 5050,
+  "scan_recursive": true
+}

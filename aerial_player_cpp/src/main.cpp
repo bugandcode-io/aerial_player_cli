@@ -8,11 +8,14 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <cctype> // for std::isspace
 
+#include "Config.hpp"
 #include "Player.hpp"
 #include "Playlist.hpp"
 #include "Server.hpp"
-
+#include "UI.hpp"
+#include "DB.hpp"
 
 namespace fs = std::filesystem;
 
@@ -20,7 +23,8 @@ namespace fs = std::filesystem;
 // Helpers
 // ───────────────────────────────
 
-static bool isAudioFile(const fs::path& path) {
+static bool isAudioFile(const fs::path &path)
+{
     // Use wide string to avoid ANSI codepage issues
     auto ext = path.extension().wstring();
     std::transform(ext.begin(), ext.end(), ext.begin(), ::towlower);
@@ -32,7 +36,8 @@ static bool isAudioFile(const fs::path& path) {
            ext == L".m4a";
 }
 
-std::shared_ptr<Playlist> buildPlaylistFromFolder(const std::string& folderPath) {
+std::shared_ptr<Playlist> buildPlaylistFromFolder(const std::string &folderPath)
+{
     auto playlist = std::make_shared<Playlist>();
 
     std::cout << "[DEBUG] Scanning folder: " << folderPath << "\n";
@@ -42,42 +47,46 @@ std::shared_ptr<Playlist> buildPlaylistFromFolder(const std::string& folderPath)
 
     std::error_code ec;
 
-    if (!fs::exists(root, ec) || ec) {
+    if (!fs::exists(root, ec) || ec)
+    {
         throw std::runtime_error(
             "Folder does not exist or cannot be accessed: " + folderPath +
-            " (" + ec.message() + ")"
-        );
+            " (" + ec.message() + ")");
     }
 
-    if (!fs::is_directory(root, ec) || ec) {
+    if (!fs::is_directory(root, ec) || ec)
+    {
         throw std::runtime_error(
             "Path is not a directory: " + folderPath +
-            " (" + ec.message() + ")"
-        );
+            " (" + ec.message() + ")");
     }
 
     // Use recursive iterator and skip entries that error instead of throwing
     fs::directory_options opts = fs::directory_options::skip_permission_denied;
 
     fs::recursive_directory_iterator it(root, opts, ec), end;
-    if (ec) {
+    if (ec)
+    {
         throw std::runtime_error(
-            std::string("Error creating directory iterator: ") + ec.message()
-        );
+            std::string("Error creating directory iterator: ") + ec.message());
     }
 
-    for (; it != end; it.increment(ec)) {
-        if (ec) {
+    for (; it != end; it.increment(ec))
+    {
+        if (ec)
+        {
             std::cerr << "[WARN] Skipping entry: " << ec.message() << "\n";
             ec.clear();
             continue;
         }
 
-        const fs::directory_entry& entry = *it;
-        if (!entry.is_regular_file()) continue;
+        const fs::directory_entry &entry = *it;
+        if (!entry.is_regular_file())
+            continue;
 
-        const fs::path& path = entry.path();
-        if (!isAudioFile(path)) continue;
+        const fs::path &path = entry.path();
+        if (!isAudioFile(path))
+            continue;
 
         // Log and store UTF-8 paths; avoids codepage issues on Windows
         std::string utf8Path = path.u8string();
@@ -93,15 +102,25 @@ std::shared_ptr<Playlist> buildPlaylistFromFolder(const std::string& folderPath)
 // main
 // ───────────────────────────────
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[])
+{
 
     AerialConfig cfg = load_config();
 
     std::cout << "[CONFIG] DB Path: " << cfg.db_path << "\n";
     std::cout << "[CONFIG] Server Port: " << cfg.port << "\n";
 
-    try {
-        if (argc < 2) {
+    // 🔹 Init DB (may be disabled if path invalid)
+    PlayDatabase db(cfg.db_path);
+    if (!db.ok())
+    {
+        std::cerr << "[DB] WARNING: DB not available; continuing without logging.\n";
+    }
+
+    try
+    {
+        if (argc < 2)
+        {
             std::cout << "Usage: aerial <music_folder>\n";
             return 1;
         }
@@ -110,14 +129,16 @@ int main(int argc, char* argv[]) {
         std::cout << "[DEBUG] Aerial starting with folder: " << folder << "\n";
 
         auto playlist = buildPlaylistFromFolder(folder);
-        if (playlist->empty()) {
+        if (playlist->empty())
+        {
             std::cout << "No supported audio files found in folder: " << folder << "\n";
             return 1;
         }
 
         Player player;
         std::cout << "[DEBUG] Initializing audio...\n";
-        if (!player.init()) {
+        if (!player.init())
+        {
             std::cerr << "Failed to initialize audio.\n";
             return 1;
         }
@@ -125,16 +146,24 @@ int main(int argc, char* argv[]) {
         player.setPlaylist(playlist);
 
         std::cout << "[DEBUG] Calling playCurrent()...\n";
-        if (!player.playCurrent()) {
+        if (!player.playCurrent())
+        {
             std::cerr << "Failed to start playback.\n";
             return 1;
         }
-        
-        // 🔥 Start TCP control server in background
-        start_control_server(player, playlist);
-        start_http_server(player, playlist, 8080);   
 
-        constexpr const char* AERIAL_VERSION = "0.1.3-dev (CLI)";
+        // Initial DB log + UI
+        if (db.ok())
+        {
+            db.logPlay(playlist->current());
+        }
+        updateNowPlayingUI(*playlist);
+
+        // 🔥 Start TCP control server in background
+        start_control_server(player, playlist, db.ok() ? &db : nullptr);
+        start_http_server(player, playlist, 8080);
+
+        constexpr const char *AERIAL_VERSION = "0.1.3-dev (CLI)";
         std::cout << "Aerial Player " << AERIAL_VERSION << "\n\n";
 
         std::cout << "Aerial Player (C++ CLI)\n";
@@ -144,108 +173,119 @@ int main(int argc, char* argv[]) {
         std::cout << "  prev        - previous track\n";
         std::cout << "  ff          - fast forward 10s\n";
         std::cout << "  rew         - rewind 10s\n";
-        std::cout << "  search      - search and play a track\n";   // <── NEW
+        std::cout << "  search      - search and play a track\n";
         std::cout << "  pause       - pause\n";
         std::cout << "  resume      - resume\n";
         std::cout << "  stop        - stop\n";
         std::cout << "  quit/exit   - quit\n\n";
 
-        // ===== Progress bar thread =====
-        std::atomic<bool> progressRunning{true};
-        std::atomic<bool> inputActive{false};
-
-                std::thread progressThread([&]() {
-            const int barWidth = 40;
-
-            while (progressRunning.load()) {
-                // Don't draw while the user is typing a command
-                if (!inputActive.load()) {
-                    double pos = player.getPositionSeconds();
-                    int posInt = static_cast<int>(pos);
-
-                    // Keep the bar moving based on time
-                    int filled = posInt % (barWidth + 1);
-                    if (filled > barWidth) filled = barWidth;
-
-                    std::string bar = "[";
-                    bar += std::string(filled, '=');
-                    if (filled < barWidth) {
-                        bar += ">";
-                        bar += std::string(barWidth - filled - 1, ' ');
-                    } else {
-                        bar += std::string(barWidth - filled, ' ');
-                    }
-                    bar += "]";
-
-                    // Print bar at start of line
-                    std::cout << "\r" << bar << " " << posInt << "s";
-                    std::cout.flush();
-                }
-
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            }
-
-            // Clear line when exiting
-            std::cout << "\r" << std::string(80, ' ') << "\r";
-            std::cout.flush();
-        });
-
-
         // ===== Command loop =====
         std::string cmd;
         bool running = true;
 
-        while (running) {
-            inputActive.store(true);
+        while (running)
+        {
             std::cout << "\n> ";
-            if (!(std::cin >> cmd)) {
-                inputActive.store(false);
-                break;
+            if (!std::getline(std::cin, cmd))
+            {
+                break; // EOF / ctrl-D / ctrl-Z
             }
-            inputActive.store(false);
 
-            if (cmd == "play") {
-                player.playCurrent();
+            // Trim both ends
+            while (!cmd.empty() && std::isspace(static_cast<unsigned char>(cmd.front())))
+            {
+                cmd.erase(cmd.begin());
             }
-            else if (cmd == "resume") {
+            while (!cmd.empty() && std::isspace(static_cast<unsigned char>(cmd.back())))
+            {
+                cmd.pop_back();
+            }
+
+            if (cmd.empty())
+            {
+                continue; // just hit Enter, don't do anything
+            }
+
+            if (cmd == "play")
+            {
+                player.playCurrent();
+                updateNowPlayingUI(*playlist);
+                if (db.ok())
+                {
+                    db.logPlay(playlist->current());
+                }
+            }
+            else if (cmd == "resume")
+            {
                 player.resume();
             }
-            else if (cmd == "pause") {
+            else if (cmd == "pause")
+            {
                 player.pause();
             }
-            else if (cmd == "next") {
+            else if (cmd == "next")
+            {
+                // 🔹 Capture what was playing before skipping
+                std::string prevTrack;
+                if (!playlist->empty())
+                {
+                    prevTrack = playlist->current();
+                }
+
                 player.playNext();
+                updateNowPlayingUI(*playlist);
+
+                if (db.ok())
+                {
+                    if (!prevTrack.empty())
+                    {
+                        db.logSkip(prevTrack);
+                    }
+                    db.logPlay(playlist->current());
+                }
             }
-            else if (cmd == "prev" || cmd == "previous") {
+            else if (cmd == "prev" || cmd == "previous")
+            {
                 player.playPrevious();
+                updateNowPlayingUI(*playlist);
+                if (db.ok())
+                {
+                    db.logPlay(playlist->current());
+                }
             }
-            else if (cmd == "ff") {
+            else if (cmd == "ff")
+            {
                 player.seekBy(10.0);
             }
-            else if (cmd == "rew") {
+            else if (cmd == "rew")
+            {
                 player.seekBy(-10.0);
             }
-              else if (cmd == "search") {
+            else if (cmd == "search")
+            {
                 // ---- SEARCH COMMAND ----
                 std::string term;
                 std::cout << "Search term: ";
                 std::getline(std::cin >> std::ws, term);
 
-                if (term.empty()) {
+                if (term.empty())
+                {
                     std::cout << "Search cancelled.\n";
                     continue;
                 }
 
                 auto matches = playlist->search(term);
-                if (matches.empty()) {
+                if (matches.empty())
+                {
                     std::cout << "No matches for \"" << term << "\"\n";
                     continue;
                 }
 
                 std::cout << "Found " << matches.size() << " match(es):\n";
-                for (size_t i = 0; i < matches.size(); ++i) {
+                for (size_t i = 0; i < matches.size(); ++i)
+                {
                     size_t idx = matches[i];
-                    const std::string& fullPath = playlist->trackAt(idx);
+                    const std::string &fullPath = playlist->trackAt(idx);
 
                     // Show just filename
                     fs::path p = fs::u8path(fullPath);
@@ -258,14 +298,17 @@ int main(int argc, char* argv[]) {
                 std::string choice;
                 std::getline(std::cin, choice);
 
-                if (choice.empty()) {
+                if (choice.empty())
+                {
                     std::cout << "Selection cancelled.\n";
                     continue;
                 }
 
-                try {
+                try
+                {
                     int sel = std::stoi(choice);
-                    if (sel < 0 || static_cast<size_t>(sel) >= matches.size()) {
+                    if (sel < 0 || static_cast<size_t>(sel) >= matches.size())
+                    {
                         std::cout << "Invalid selection.\n";
                         continue;
                     }
@@ -273,34 +316,39 @@ int main(int argc, char* argv[]) {
                     size_t realIndex = matches[sel];
                     playlist->jumpTo(realIndex);
                     player.playCurrent();
-                } catch (...) {
+                    updateNowPlayingUI(*playlist);
+                    if (db.ok())
+                    {
+                        db.logPlay(playlist->current());
+                    }
+                }
+                catch (...)
+                {
                     std::cout << "Invalid input.\n";
                 }
             }
-            else if (cmd == "stop") {
+            else if (cmd == "stop")
+            {
                 player.stop();
             }
-            else if (cmd == "quit" || cmd == "exit") {
+            else if (cmd == "quit" || cmd == "exit")
+            {
                 std::cout << "[DEBUG] Quit command received.\n";
                 running = false;
             }
-            else {
+            else
+            {
                 std::cout << "Unknown command: " << cmd << "\n";
                 std::cout << "Commands: play, resume, pause, next, prev, ff, rew, stop, quit\n";
             }
         }
 
-        // Stop progress thread
-        progressRunning.store(false);
-        if (progressThread.joinable()) {
-            progressThread.join();
-        }
-
         player.shutdown();
         std::cout << "[DEBUG] Shutdown complete.\n";
         return 0;
-
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception &e)
+    {
         std::cerr << "[FATAL] Unhandled exception: " << e.what() << "\n";
         return 1;
     }
