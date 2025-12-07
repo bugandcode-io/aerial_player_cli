@@ -1,10 +1,19 @@
 #include "Player.hpp"
+#include "Playlist.hpp"
+#include "UI.hpp"
 
 #include <SDL.h>
 #include <SDL_mixer.h>
-#include <iostream>
 
-#include "UI.hpp"  // our separate UI layer
+#include <algorithm>   // std::clamp
+#include <iostream>
+#include <string>
+
+// Map our 0–100% to SDL_mixer 0–128
+static int percentToSdlVolume(int percent) {
+    percent = std::clamp(percent, 0, 100);
+    return percent * MIX_MAX_VOLUME / 100;
+}
 
 Player::Player() = default;
 
@@ -13,7 +22,8 @@ Player::~Player() {
 }
 
 bool Player::init() {
-    if (initialized_) return true;
+    if (initialized_)
+        return true;
 
     if (SDL_Init(SDL_INIT_AUDIO) < 0) {
         std::cerr << "[SDL] SDL_Init failed: " << SDL_GetError() << "\n";
@@ -26,7 +36,7 @@ bool Player::init() {
     if ((initted & flags) != flags) {
         std::cerr << "[SDL_mixer] Mix_Init failed: " << Mix_GetError()
                   << " (some formats may not be supported)\n";
-        // Not necessarily fatal, we can still try to play what is supported
+        // Not necessarily fatal
     }
 
     // 44.1kHz, default format, stereo, 1024 buffer size
@@ -38,13 +48,18 @@ bool Player::init() {
     }
 
     Mix_AllocateChannels(16);
+
+    // Apply initial volume
+    Mix_VolumeMusic(percentToSdlVolume(volumePercent_));
+
     initialized_ = true;
     std::cout << "[DEBUG] Audio initialized.\n";
     return true;
 }
 
 void Player::shutdown() {
-    if (!initialized_) return;
+    if (!initialized_)
+        return;
 
     std::cout << "[DEBUG] Shutting down audio...\n";
     Mix_HaltChannel(-1);
@@ -55,9 +70,13 @@ void Player::shutdown() {
     initialized_ = false;
 }
 
+// ───────────── Playlist wiring ─────────────
+
 void Player::setPlaylist(std::shared_ptr<Playlist> playlist) {
     playlist_ = std::move(playlist);
 }
+
+// ───────────── Playback controls ─────────────
 
 bool Player::playCurrent() {
     if (!initialized_ || !playlist_ || playlist_->empty()) {
@@ -97,37 +116,43 @@ bool Player::playCurrent() {
 }
 
 bool Player::playNext() {
-    if (!playlist_) return false;
+    if (!playlist_)
+        return false;
     playlist_->next();
     return playCurrent();
 }
 
 bool Player::playPrevious() {
-    if (!playlist_) return false;
+    if (!playlist_)
+        return false;
     playlist_->previous();
     return playCurrent();
 }
 
 void Player::pause() {
-    if (!initialized_) return;
+    if (!initialized_)
+        return;
     Mix_PauseMusic();
     paused_ = true;
 }
 
 void Player::resume() {
-    if (!initialized_) return;
+    if (!initialized_)
+        return;
     Mix_ResumeMusic();
     paused_ = false;
 }
 
 void Player::stop() {
-    if (!initialized_) return;
+    if (!initialized_)
+        return;
     Mix_HaltMusic();
     paused_ = false;
 }
 
 bool Player::isPlaying() const {
-    if (!initialized_) return false;
+    if (!initialized_)
+        return false;
     return Mix_PlayingMusic() != 0;
 }
 
@@ -135,18 +160,21 @@ bool Player::isPaused() const {
     return paused_;
 }
 
+// ───────────── Now playing / position ─────────────
+
 std::string Player::nowPlaying() const {
-    if (!playlist_ || playlist_->empty()) return {};
+    if (!playlist_ || playlist_->empty())
+        return {};
     return playlist_->current();
 }
 
-
-
 double Player::getPositionSeconds() const {
-    if (!initialized_) return 0.0;
+    if (!initialized_)
+        return 0.0;
 
-    double pos = Mix_GetMusicPosition(nullptr);  // available in your SDL_mixer
-    if (pos < 0.0) return 0.0;
+    double pos = Mix_GetMusicPosition(nullptr); // SDL_mixer 2.6+
+    if (pos < 0.0)
+        return 0.0;
     return pos;
 }
 
@@ -157,9 +185,13 @@ double Player::getPositionSeconds() const {
 //     return dur;
 // }
 
+// ───────────── Seeking ─────────────
+
 bool Player::seekTo(double seconds) {
-    if (!initialized_) return false;
-    if (seconds < 0.0) seconds = 0.0;
+    if (!initialized_)
+        return false;
+    if (seconds < 0.0)
+        seconds = 0.0;
 
     if (Mix_SetMusicPosition(seconds) < 0) {
         std::cerr << "[SDL_mixer] seekTo failed: " << Mix_GetError() << "\n";
@@ -171,13 +203,28 @@ bool Player::seekTo(double seconds) {
 }
 
 bool Player::seekBy(double deltaSeconds) {
-    if (!initialized_) return false;
+    if (!initialized_)
+        return false;
 
     double cur = getPositionSeconds();
     double target = cur + deltaSeconds;
-    if (target < 0.0) target = 0.0;
+    if (target < 0.0)
+        target = 0.0;
 
-    // We don’t know exact duration here; let SDL_mixer clamp if needed.
     return seekTo(target);
 }
 
+// ───────────── Volume control (0–100%) ─────────────
+
+void Player::setVolumePercent(int percent) {
+    volumePercent_ = std::clamp(percent, 0, 100);
+    Mix_VolumeMusic(percentToSdlVolume(volumePercent_));
+}
+
+void Player::changeVolumePercent(int delta) {
+    setVolumePercent(volumePercent_ + delta);
+}
+
+int Player::getVolumePercent() const {
+    return volumePercent_;
+}

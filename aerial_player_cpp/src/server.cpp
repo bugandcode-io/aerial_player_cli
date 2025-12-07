@@ -159,6 +159,26 @@ static void handle_tcp_client(socket_t client,
             {
                 player.stop();
                 reply << "OK stop\r\n";
+            } 
+            else if(lower == "status"){
+                if (lower != "quit" && lower != "exit") {
+    std::string nowPath;
+    std::string nextPath;
+
+    if (!playlist->empty()) {
+        nowPath  = playlist->current();
+        nextPath = playlist->peekNext();
+    }
+
+    reply << renderNowPlayingBoxPlain(nowPath, nextPath);
+
+    double posSeconds = player.getPositionSeconds();
+    reply << renderProgressBar(posSeconds);
+
+    // Optional: show volume too
+    reply << "\r\nVolume: " << player.getVolumePercent() << "%\r\n";
+}
+
             }
             else if (lower == "quit" || lower == "exit")
             {

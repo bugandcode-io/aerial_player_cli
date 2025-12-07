@@ -9,6 +9,8 @@
 #include <thread>
 #include <chrono>
 #include <cctype> // for std::isspace
+#include <sstream> // for parsing "vol 50"
+
 
 #include "Config.hpp"
 #include "Player.hpp"
@@ -174,6 +176,10 @@ int main(int argc, char *argv[])
         std::cout << "  ff          - fast forward 10s\n";
         std::cout << "  rew         - rewind 10s\n";
         std::cout << "  search      - search and play a track\n";
+        std::cout << "  volup       - volume +5%\n";
+        std::cout << "  voldown     - volume -5%\n";
+        std::cout << "  mute        - volume 0%\n";
+        std::cout << "  vol         - show current volume\n";
         std::cout << "  pause       - pause\n";
         std::cout << "  resume      - resume\n";
         std::cout << "  stop        - stop\n";
@@ -331,6 +337,50 @@ int main(int argc, char *argv[])
             {
                 player.stop();
             }
+
+
+             else if (cmd == "volup")
+            {
+                player.changeVolumePercent(+5);
+                std::cout << "Volume: " << player.getVolumePercent() << "%\n";
+            }
+            else if (cmd == "voldown")
+            {
+                player.changeVolumePercent(-5);
+                std::cout << "Volume: " << player.getVolumePercent() << "%\n";
+            }
+            else if (cmd == "mute")
+            {
+                player.setVolumePercent(0);
+                std::cout << "Volume: " << player.getVolumePercent() << "% (muted)\n";
+            }
+            else if (cmd.rfind("vol", 0) == 0) // starts with "vol"
+            {
+                // Allow:
+                //   vol        -> show volume
+                //   vol 60     -> set to 60%
+                if (cmd == "vol")
+                {
+                    std::cout << "Volume: " << player.getVolumePercent() << "%\n";
+                }
+                else
+                {
+                    // parse number after "vol"
+                    std::istringstream iss(cmd.substr(3)); // skip "vol"
+                    int percent = 0;
+                    if (iss >> percent)
+                    {
+                        player.setVolumePercent(percent);
+                        std::cout << "Volume set to: " << player.getVolumePercent() << "%\n";
+                    }
+                    else
+                    {
+                        std::cout << "Usage: vol [0-100]\n";
+                    }
+                }
+            }
+
+            
             else if (cmd == "quit" || cmd == "exit")
             {
                 std::cout << "[DEBUG] Quit command received.\n";
