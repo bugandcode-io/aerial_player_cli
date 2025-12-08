@@ -28,13 +28,16 @@ else()
     message(STATUS "SQLite NOT found: building without SQLite (JSON / no-DB mode).")
 endif()
 
-# Turn Qt UI on/off from the command line
-option(BUILD_QT_UI "Build Qt-based DJ UI" OFF)
+# ──────────────────────────────────────────────
+# OPTIONS: which Qt frontends to build
+# ──────────────────────────────────────────────
+option(BUILD_DESKTOP_UI      "Build Qt desktop player (AerialPlayer)"       ON)
+option(BUILD_DJ_UI           "Build Qt DJ UI (AerialDJ)"                    ON)
+option(BUILD_VIDEO_EDITOR_UI "Build Qt video editor UI (AerialVideoEditor)" ON)
 
 # ──────────────────────────────────────────────
 # CORE LIBRARY  (everything in src/core)
 # ──────────────────────────────────────────────
-
 add_library(aerial_core
     src/core/Player.cpp
     src/core/Playlist.cpp
@@ -59,7 +62,6 @@ target_link_libraries(aerial_core
             SDL2_mixer::SDL2_mixer-static>
 )
 
-# Link SQLite only if vcpkg provided it
 if (AERIAL_HAVE_SQLITE)
     target_link_libraries(aerial_core PUBLIC unofficial::sqlite3::sqlite3)
     target_compile_definitions(aerial_core PUBLIC AERIAL_USE_SQLITE=1)
@@ -70,27 +72,32 @@ if (WIN32)
 endif()
 
 # ──────────────────────────────────────────────
-# CLI / TERMINAL PLAYER (uses your big main.cpp)
+# CLI / TERMINAL PLAYER
 # ──────────────────────────────────────────────
-
 add_executable(aerial
     src/cli/main.cpp
 )
 
-target_link_libraries(aerial
-    PRIVATE
-        aerial_core
-)
-
-target_include_directories(aerial
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/core
-)
+target_link_libraries(aerial PRIVATE aerial_core)
+target_include_directories(aerial PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/core)
 
 # ──────────────────────────────────────────────
-# OPTIONAL: QT DJ UI (only if BUILD_QT_UI=ON)
+# QT FRONTENDS (desktop / DJ / editor)
 # ──────────────────────────────────────────────
+if (BUILD_DESKTOP_UI OR BUILD_DJ_UI OR BUILD_VIDEO_EDITOR_UI)
+    # Only look for Qt if we actually build some Qt UI
+    find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+endif()
 
-if (BUILD_QT_UI)
-    add_subdirectory(src/ui_qt)
+if (BUILD_DESKTOP_UI)
+    add_subdirectory(src/ui_desktop)
+endif()
+
+if (BUILD_DJ_UI)
+    add_subdirectory(src/ui_dj)
+endif()
+
+if (BUILD_VIDEO_EDITOR_UI)
+    add_subdirectory(src/ui_videoEditor)
 endif()
