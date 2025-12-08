@@ -9,11 +9,20 @@
 #include <iostream>
 #include <string>
 
-// Map our 0–100% to SDL_mixer 0–128
+// ─────────────────────────────────────────────────────────────
+// Helper: Map our 0–100% volume scale to SDL_mixer's 0–128.
+// ─────────────────────────────────────────────────────────────
+/**
+ * @brief Convert a percentage-based volume (0–100) to SDL_mixer scale (0–MIX_MAX_VOLUME).
+ */
 static int percentToSdlVolume(int percent) {
     percent = std::clamp(percent, 0, 100);
     return percent * MIX_MAX_VOLUME / 100;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Lifecycle
+// ─────────────────────────────────────────────────────────────
 
 Player::Player() = default;
 
@@ -31,12 +40,12 @@ bool Player::init() {
     }
 
     // Initialize codecs (MP3, OGG, FLAC, etc.)
-    int flags = MIX_INIT_MP3 | MIX_INIT_OGG | MIX_INIT_FLAC;
+    int flags   = MIX_INIT_MP3 | MIX_INIT_OGG | MIX_INIT_FLAC;
     int initted = Mix_Init(flags);
     if ((initted & flags) != flags) {
         std::cerr << "[SDL_mixer] Mix_Init failed: " << Mix_GetError()
                   << " (some formats may not be supported)\n";
-        // Not necessarily fatal
+        // Not necessarily fatal; we can still play whatever formats did init.
     }
 
     // 44.1kHz, default format, stereo, 1024 buffer size
@@ -62,21 +71,41 @@ void Player::shutdown() {
         return;
 
     std::cout << "[DEBUG] Shutting down audio...\n";
+
     Mix_HaltChannel(-1);
     Mix_HaltMusic();
     Mix_CloseAudio();
     Mix_Quit();
     SDL_Quit();
+
     initialized_ = false;
 }
 
-// ───────────── Playlist wiring ─────────────
+// ─────────────────────────────────────────────────────────────
+// Playlist wiring
+// ─────────────────────────────────────────────────────────────
 
 void Player::setPlaylist(std::shared_ptr<Playlist> playlist) {
     playlist_ = std::move(playlist);
 }
 
-// ───────────── Playback controls ─────────────
+/**
+ * @brief Attach a playlist directly from file paths.
+ *
+ * NOTE: This is a thin helper; you will likely want to:
+ *  - Construct a Playlist from the vector of fs::path, or
+ *  - Replace Playlist entirely with a simpler internal list.
+ *
+ * For now this is a stub so the symbol is defined and the code links.
+ */
+void Player::setPlaylist(const std::vector<fs::path>& files) {
+    (void)files;
+    // TODO: Implement: build a Playlist from `files` and assign to `playlist_`.
+}
+
+// ─────────────────────────────────────────────────────────────
+// Playback controls
+// ─────────────────────────────────────────────────────────────
 
 bool Player::playCurrent() {
     if (!initialized_ || !playlist_ || playlist_->empty()) {
@@ -87,9 +116,11 @@ bool Player::playCurrent() {
     const std::string path = playlist_->current();
     std::cout << "[DEBUG] Attempting to play: " << path << "\n";
 
+    // Stop any currently playing music
     Mix_HaltChannel(-1);
     Mix_HaltMusic();
 
+    // Load and play the new track
     Mix_Music* music = Mix_LoadMUS(path.c_str());
     if (!music) {
         std::cerr << "[SDL_mixer] Failed to load: " << path
@@ -116,15 +147,19 @@ bool Player::playCurrent() {
 }
 
 bool Player::playNext() {
-    if (!playlist_)
+    if (!playlist_ || playlist_->empty())
         return false;
-    playlist_->next();
-    return playCurrent();
+
+    // Respect the configured play mode via nextTrack()
+    nextTrack();
+    return true;
 }
 
 bool Player::playPrevious() {
-    if (!playlist_)
+    if (!playlist_ || playlist_->empty())
         return false;
+
+    // "Previous" is always just one step back in the Playlist for now.
     playlist_->previous();
     return playCurrent();
 }
@@ -132,6 +167,7 @@ bool Player::playPrevious() {
 void Player::pause() {
     if (!initialized_)
         return;
+
     Mix_PauseMusic();
     paused_ = true;
 }
@@ -139,6 +175,7 @@ void Player::pause() {
 void Player::resume() {
     if (!initialized_)
         return;
+
     Mix_ResumeMusic();
     paused_ = false;
 }
@@ -146,6 +183,7 @@ void Player::resume() {
 void Player::stop() {
     if (!initialized_)
         return;
+
     Mix_HaltMusic();
     paused_ = false;
 }
@@ -153,6 +191,7 @@ void Player::stop() {
 bool Player::isPlaying() const {
     if (!initialized_)
         return false;
+
     return Mix_PlayingMusic() != 0;
 }
 
@@ -160,7 +199,9 @@ bool Player::isPaused() const {
     return paused_;
 }
 
-// ───────────── Now playing / position ─────────────
+// ─────────────────────────────────────────────────────────────
+// Now playing / position
+// ─────────────────────────────────────────────────────────────
 
 std::string Player::nowPlaying() const {
     if (!playlist_ || playlist_->empty())
@@ -172,12 +213,15 @@ double Player::getPositionSeconds() const {
     if (!initialized_)
         return 0.0;
 
-    double pos = Mix_GetMusicPosition(nullptr); // SDL_mixer 2.6+
+    // SDL_mixer 2.6+ lets us query the playback position of the current music.
+    double pos = Mix_GetMusicPosition(nullptr);
     if (pos < 0.0)
         return 0.0;
+
     return pos;
 }
 
+// If you decide to expose track duration later, you can use:
 // double Player::getDurationSeconds() const {
 //     if (!initialized_) return 0.0;
 //     double dur = Mix_GetMusicDuration(nullptr);  // SDL_mixer 2.6+
@@ -185,11 +229,14 @@ double Player::getPositionSeconds() const {
 //     return dur;
 // }
 
-// ───────────── Seeking ─────────────
+// ─────────────────────────────────────────────────────────────
+// Seeking
+// ─────────────────────────────────────────────────────────────
 
 bool Player::seekTo(double seconds) {
     if (!initialized_)
         return false;
+
     if (seconds < 0.0)
         seconds = 0.0;
 
@@ -198,7 +245,8 @@ bool Player::seekTo(double seconds) {
         return false;
     }
 
-    paused_ = false; // after seek, treat as playing
+    // After seeking, treat as actively playing
+    paused_ = false;
     return true;
 }
 
@@ -206,15 +254,18 @@ bool Player::seekBy(double deltaSeconds) {
     if (!initialized_)
         return false;
 
-    double cur = getPositionSeconds();
+    double cur    = getPositionSeconds();
     double target = cur + deltaSeconds;
+
     if (target < 0.0)
         target = 0.0;
 
     return seekTo(target);
 }
 
-// ───────────── Volume control (0–100%) ─────────────
+// ─────────────────────────────────────────────────────────────
+// Volume control (0–100%)
+// ─────────────────────────────────────────────────────────────
 
 void Player::setVolumePercent(int percent) {
     volumePercent_ = std::clamp(percent, 0, 100);
@@ -227,4 +278,53 @@ void Player::changeVolumePercent(int delta) {
 
 int Player::getVolumePercent() const {
     return volumePercent_;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Play mode navigation
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * @brief Move to the next track based on the current play mode.
+ *
+ * CURRENT BEHAVIOR:
+ *  - NORMAL     → advance to next track in Playlist.
+ *  - REPEAT_ONE → stay on the same track and restart playback.
+ *  - RANDOM     → currently behaves like NORMAL (TODO: random jump).
+ *  - SHUFFLE    → currently behaves like NORMAL (TODO: smart shuffle).
+ *
+ * Once Playlist supports random-access (or we move indexing into Player),
+ * we can upgrade RANDOM/SHUFFLE here to use true random / smart shuffle.
+ */
+void Player::nextTrack() {
+    if (!playlist_ || playlist_->empty())
+        return;
+
+    switch (playMode_) {
+        case PlayMode::NORMAL:
+        case PlayMode::RANDOM:
+        case PlayMode::SHUFFLE:
+            // For now, RANDOM and SHUFFLE just move forward like NORMAL.
+            playlist_->next();
+            break;
+
+        case PlayMode::REPEAT_ONE:
+            // Do not advance the playlist index; just replay the same track.
+            break;
+    }
+
+    // After changing track (or re-playing the same one), start playback.
+    playCurrent();
+}
+
+/**
+ * @brief Skip the current track.
+ *
+ * Right now this simply delegates to nextTrack(), but this is the hook
+ * where we can increment "skip" counters in the future to influence
+ * smart shuffle.
+ */
+void Player::skipCurrent() {
+    // TODO: record skip stats per track when we add rating/learning logic.
+    nextTrack();
 }

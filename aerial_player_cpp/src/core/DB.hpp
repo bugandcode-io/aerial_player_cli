@@ -21,5 +21,12 @@ private:
     void logEvent(const std::string& trackPath,
                   const std::string& eventType);
 
-    sqlite3* db_ = nullptr;
+     std::string dbPath_;
+
+#ifdef AERIAL_USE_SQLITE
+    void* db_;   // actually sqlite3*, but we keep the include in DB.cpp
+#else
+    void* db_;   // unused in JSON mode; kept for layout simplicity
+#endif
+    bool ok_ = false;
 };

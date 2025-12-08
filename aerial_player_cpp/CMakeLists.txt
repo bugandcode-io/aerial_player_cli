@@ -12,7 +12,21 @@ endif()
 # vcpkg will satisfy these when using the vcpkg toolchain + correct triplet
 find_package(SDL2 CONFIG REQUIRED)
 find_package(SDL2_mixer CONFIG REQUIRED)
-find_package(unofficial-sqlite3 CONFIG REQUIRED)
+
+# ──────────────────────────────────────────────
+# OPTIONAL SQLITE
+# ──────────────────────────────────────────────
+set(AERIAL_HAVE_SQLITE OFF)
+
+# Try to find vcpkg's sqlite3 port, but don't fail if it's missing
+find_package(unofficial-sqlite3 CONFIG QUIET)
+
+if (TARGET unofficial::sqlite3::sqlite3)
+    message(STATUS "SQLite found: enabling AERIAL_USE_SQLITE")
+    set(AERIAL_HAVE_SQLITE ON)
+else()
+    message(STATUS "SQLite NOT found: building without SQLite (JSON / no-DB mode).")
+endif()
 
 # Turn Qt UI on/off from the command line
 option(BUILD_QT_UI "Build Qt-based DJ UI" OFF)
@@ -43,8 +57,13 @@ target_link_libraries(aerial_core
         $<IF:$<TARGET_EXISTS:SDL2_mixer::SDL2_mixer>,
             SDL2_mixer::SDL2_mixer,
             SDL2_mixer::SDL2_mixer-static>
-        unofficial::sqlite3::sqlite3
 )
+
+# Link SQLite only if vcpkg provided it
+if (AERIAL_HAVE_SQLITE)
+    target_link_libraries(aerial_core PUBLIC unofficial::sqlite3::sqlite3)
+    target_compile_definitions(aerial_core PUBLIC AERIAL_USE_SQLITE=1)
+endif()
 
 if (WIN32)
     target_link_libraries(aerial_core PUBLIC Ws2_32)
