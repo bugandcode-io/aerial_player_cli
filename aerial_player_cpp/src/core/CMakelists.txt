@@ -1,0 +1,20 @@
+# core/CMakeLists.txt
+
+add_library(aerial_core
+    Player.cpp
+    Playlist.cpp
+    Server.cpp
+    Config.cpp
+    DB.cpp
+)
+
+target_include_directories(aerial_core
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Engine needs SDL + sqlite
+target_link_libraries(aerial_core
+    PUBLIC
+        ${AERIAL_THIRD_PARTY_LIBS}
+)

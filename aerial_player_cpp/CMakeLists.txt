@@ -12,43 +12,66 @@ endif()
 # vcpkg will satisfy these when using the vcpkg toolchain + correct triplet
 find_package(SDL2 CONFIG REQUIRED)
 find_package(SDL2_mixer CONFIG REQUIRED)
-
-# 👇 THIS is what vcpkg told you in the message
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
 
-# Platform-specific sources (icon/resource only on Windows)
-set(PLATFORM_SOURCES)
+# Turn Qt UI on/off from the command line
+option(BUILD_QT_UI "Build Qt-based DJ UI" OFF)
+
+# ──────────────────────────────────────────────
+# CORE LIBRARY  (everything in src/core)
+# ──────────────────────────────────────────────
+
+add_library(aerial_core
+    src/core/Player.cpp
+    src/core/Playlist.cpp
+    src/core/Server.cpp
+    src/core/UI.cpp
+    src/core/Config.cpp
+    src/core/DB.cpp
+    src/core/json.hpp
+)
+
+target_include_directories(aerial_core
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+)
+
+target_link_libraries(aerial_core
+    PUBLIC
+        SDL2::SDL2
+        SDL2::SDL2main
+        $<IF:$<TARGET_EXISTS:SDL2_mixer::SDL2_mixer>,
+            SDL2_mixer::SDL2_mixer,
+            SDL2_mixer::SDL2_mixer-static>
+        unofficial::sqlite3::sqlite3
+)
+
 if (WIN32)
-    list(APPEND PLATFORM_SOURCES res/aerial.rc)
+    target_link_libraries(aerial_core PUBLIC Ws2_32)
 endif()
 
+# ──────────────────────────────────────────────
+# CLI / TERMINAL PLAYER (uses your big main.cpp)
+# ──────────────────────────────────────────────
+
 add_executable(aerial
-    src/main.cpp
-    src/Player.cpp
-    src/Playlist.cpp
-    src/UI.cpp
-    src/Server.cpp
-    src/json.hpp
-    src/Config.cpp
-    src/Config.hpp
-    src/DB.cpp
-    src/DB.hpp
-    # You usually don't put config.json as a source; it’s just a data file.
-    ${PLATFORM_SOURCES}
+    src/cli/main.cpp
 )
 
-# Link against SDL2, SDL2_mixer, and sqlite3 from vcpkg
-target_link_libraries(aerial PRIVATE
-    SDL2::SDL2
-    SDL2::SDL2main
-    $<IF:$<TARGET_EXISTS:SDL2_mixer::SDL2_mixer>,
-        SDL2_mixer::SDL2_mixer,
-        SDL2_mixer::SDL2_mixer-static>
-    unofficial::sqlite3::sqlite3
+target_link_libraries(aerial
+    PRIVATE
+        aerial_core
 )
 
-# Extra libs for Windows (Winsock)
-if (WIN32)
-    target_link_libraries(aerial PRIVATE Ws2_32)
-    target_include_directories(aerial PRIVATE src)
+target_include_directories(aerial
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+)
+
+# ──────────────────────────────────────────────
+# OPTIONAL: QT DJ UI (only if BUILD_QT_UI=ON)
+# ──────────────────────────────────────────────
+
+if (BUILD_QT_UI)
+    add_subdirectory(src/ui_qt)
 endif()
