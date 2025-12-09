@@ -1,7 +1,7 @@
 // src/ui_desktop/main.cpp
 #include <QApplication>
 #include <QStringList>
-#include "MainWindow.hpp"
+#include "MainWindow.h"
 
 int main(int argc, char *argv[])
 {

@@ -1,7 +1,7 @@
 {
   "name": "aerial-player",
   "version": "0.1.0",
-  "builtin-baseline": "4ba97a60d0cab61679faae32ad31947109908b4e",
+  "builtin-baseline": "80d025e8299d442c13b29751fc9451711b7c6c8e",
   "dependencies": [
     "sdl2",
     "sdl2-mixer"

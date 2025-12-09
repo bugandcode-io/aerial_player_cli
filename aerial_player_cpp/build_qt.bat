@@ -1,6 +1,8 @@
 @echo off
 setlocal
 
+cd /d D:\Code\aerial_player\cli\aerial_player_cpp
+
 echo ==============================
 echo   Cleaning previous Qt build...
 echo ==============================
@@ -13,13 +15,12 @@ echo   Configuring Qt build...
 echo ==============================
 
 cmake -B build_qt -S . ^
- -DCMAKE_TOOLCHAIN_FILE=C:/Code/vcpkg/scripts/buildsystems/vcpkg.cmake ^
- -DQt6_DIR=C:/Qt/6.10.1/mingw_64/lib/cmake/Qt6 ^
+ -DCMAKE_TOOLCHAIN_FILE=D:/Code/vcpkg/scripts/buildsystems/vcpkg.cmake ^
  -DVCPKG_TARGET_TRIPLET=x64-windows ^
  -DCMAKE_BUILD_TYPE=Release ^
  -DBUILD_DESKTOP_UI=ON ^
  -DBUILD_DJ_UI=ON ^
- -DBUILD_VIDEO_EDITOR_UI=ON
+ -DBUILD_VIDEO_EDITOR_UI=OFF
 
 if errorlevel 1 (
     echo.
@@ -32,7 +33,6 @@ echo ==============================
 echo   Building Qt frontends...
 echo ==============================
 
-REM Build all Qt targets (AerialPlayer, AerialDJ, AerialVideoEditor)
 cmake --build build_qt --config Release
 
 if errorlevel 1 (
@@ -48,26 +48,31 @@ echo ==============================
 
 if not exist dist_qt mkdir dist_qt
 
-REM Desktop player
-if exist build_qt\Release\AerialPlayer.exe (
-    copy /y build_qt\Release\AerialPlayer.exe dist_qt\AerialPlayer.exe >nul
+REM ----- Desktop player -----
+set "PLAYER_SRC=build_qt\src\ui_desktop\Release\AerialPlayer.exe"
+if exist "%PLAYER_SRC%" (
+    copy /y "%PLAYER_SRC%" dist_qt\AerialPlayer.exe >nul
     echo Deployed desktop player to dist_qt\AerialPlayer.exe
 ) else (
-    echo WARNING: build_qt\Release\AerialPlayer.exe not found!
+    echo WARNING: %PLAYER_SRC% not found!
 )
 
-REM DJ UI
-if exist build_qt\Release\AerialDJ.exe (
-    copy /y build_qt\Release\AerialDJ.exe dist_qt\AerialDJ.exe >nul
+REM ----- DJ UI -----
+set "DJ_SRC=build_qt\src\ui_dj\Release\AerialDJ.exe"
+if exist "%DJ_SRC%" (
+    copy /y "%DJ_SRC%" dist_qt\AerialDJ.exe >nul
     echo Deployed DJ UI to dist_qt\AerialDJ.exe
 ) else (
-    echo WARNING: build_qt\Release\AerialDJ.exe not found!
+    echo WARNING: %DJ_SRC% not found!
 )
 
-REM (Optional) Video editor
-if exist build_qt\Release\AerialVideoEditor.exe (
-    copy /y build_qt\Release\AerialVideoEditor.exe dist_qt\AerialVideoEditor.exe >nul
-    echo Deployed video editor to dist_qt\AerialVideoEditor.exe
+REM ----- (Optional) CLI -----
+set "CLI_SRC=build_qt\Release\aerial.exe"
+if exist "%CLI_SRC%" (
+    copy /y "%CLI_SRC%" dist_qt\aerial_cli.exe >nul
+    echo Deployed CLI to dist_qt\aerial_cli.exe
+) else (
+    echo WARNING: %CLI_SRC% not found!
 )
 
 echo.
@@ -75,7 +80,7 @@ echo *********************************************
 echo   QT BUILD COMPLETE
 echo   Desktop: dist_qt\AerialPlayer.exe
 echo   DJ:      dist_qt\AerialDJ.exe
-echo   Editor:  dist_qt\AerialVideoEditor.exe (if built)
+echo   CLI:     dist_qt\aerial_cli.exe
 echo   (Qt DLLs must be on PATH or beside the exe)
 echo *********************************************
 

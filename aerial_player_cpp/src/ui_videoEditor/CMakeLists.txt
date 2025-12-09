@@ -18,5 +18,5 @@ target_include_directories(AerialVideoEditor
 target_link_libraries(AerialVideoEditor
     PRIVATE
         aerial_core
-        Qt${QT_VERSION_MAJOR}::Widgets
+        Qt6::Widgets
 )

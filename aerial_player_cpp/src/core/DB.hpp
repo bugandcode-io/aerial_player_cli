@@ -2,15 +2,17 @@
 
 #include <string>
 
-struct sqlite3;  // forward declaration
+// Forward declaration so we can use sqlite3* in the header
+// even if sqlite3.h is only included in DB.cpp
+struct sqlite3;
 
-class PlayDatabase {
+class PlayDatabase
+{
 public:
     explicit PlayDatabase(const std::string& path);
     ~PlayDatabase();
 
-    // quick check if DB is usable
-    bool ok() const { return db_ != nullptr; }
+    bool ok() const { return ok_; }
 
     void logPlay(const std::string& trackPath);
     void logSkip(const std::string& trackPath);
@@ -21,12 +23,7 @@ private:
     void logEvent(const std::string& trackPath,
                   const std::string& eventType);
 
-     std::string dbPath_;
-
-#ifdef AERIAL_USE_SQLITE
-    void* db_;   // actually sqlite3*, but we keep the include in DB.cpp
-#else
-    void* db_;   // unused in JSON mode; kept for layout simplicity
-#endif
-    bool ok_ = false;
+    std::string dbPath_;
+    sqlite3*    db_;   // <— REAL sqlite3* now (not void*)
+    bool        ok_;
 };

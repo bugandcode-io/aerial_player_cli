@@ -1,15 +1,16 @@
-# src/ui_desktop/CMakeLists.txt
-
 set(AERIAL_QT_DESKTOP_INCLUDES
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/src/core
 )
 
+set(AERIAL_QT_DESKTOP_SOURCES
+    main.cpp
+    MainWindow.cpp
+    MainWindow.h
+)
+
 add_executable(AerialPlayer
-    main.cpp          # your desktop main (will take argv[1])
-    # add more files as you build the UI, e.g.:
-    # MainWindow.cpp
-    # MainWindow.h
+    ${AERIAL_QT_DESKTOP_SOURCES}
 )
 
 target_include_directories(AerialPlayer
@@ -20,5 +21,12 @@ target_include_directories(AerialPlayer
 target_link_libraries(AerialPlayer
     PRIVATE
         aerial_core
-        Qt${QT_VERSION_MAJOR}::Widgets
+        Qt6::Widgets
+        Qt6::Multimedia
+)
+
+set_target_properties(AerialPlayer PROPERTIES
+    AUTOMOC ON
+    AUTOUIC ON
+    AUTORCC ON
 )
