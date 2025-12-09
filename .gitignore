@@ -3,3 +3,5 @@
 .\aerial_player_cpp\dist_qt
 .\aerial_player_cpp\dist
 .\aerial_player_cpp\Release
+build_qt/
+dist_qt/
