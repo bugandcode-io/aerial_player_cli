@@ -30,11 +30,15 @@ set(AERIAL_HAVE_SQLITE OFF)
 # Try to find vcpkg's sqlite3 port, but don't fail if it's missing
 find_package(unofficial-sqlite3 CONFIG QUIET)
 
-if (TARGET unofficial::sqlite3::sqlite3)
-    message(STATUS "SQLite found: enabling AERIAL_USE_SQLITE")
+# Optional toggle if you ever want SQLite back
+option(AERIAL_USE_SQLITE_BACKEND "Use SQLite instead of JSON for stats DB" OFF)
+
+if (TARGET unofficial::sqlite3::sqlite3 AND AERIAL_USE_SQLITE_BACKEND)
+    message(STATUS "SQLite found AND AERIAL_USE_SQLITE_BACKEND=ON: enabling AERIAL_USE_SQLITE")
     set(AERIAL_HAVE_SQLITE ON)
 else()
-    message(STATUS "SQLite NOT found: building without SQLite (JSON / no-DB mode).")
+    message(STATUS "Using JSON stats DB (no SQLite backend).")
+    set(AERIAL_HAVE_SQLITE OFF)
 endif()
 
 # ──────────────────────────────────────────────

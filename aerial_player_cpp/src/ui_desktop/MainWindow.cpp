@@ -1,9 +1,9 @@
 #include "MainWindow.h"
+#include "DB.hpp"   // uses PlayDatabase (SQLite or JSON)
 
 #include <QMediaPlayer>
 #include <QAudioOutput>
 #include <QPushButton>
-#include <QSlider>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -23,7 +23,8 @@ MainWindow::MainWindow(QWidget* parent)
       m_nowPlaying(nullptr),
       m_currentIndex(-1),
       m_isPlaying(false),
-      m_mode(PlaybackMode::Normal)          // default to NORMAL
+      m_mode(PlaybackMode::Normal),
+      m_db(new PlayDatabase("aerial_stats.json"))  // JSON fallback if no SQLite
 {
     m_player->setAudioOutput(m_audioOutput);
     m_audioOutput->setVolume(0.1f); // 10% default
@@ -39,6 +40,12 @@ MainWindow::MainWindow(QWidget* parent)
                     handleEndOfTrack();
                 }
             });
+}
+
+MainWindow::~MainWindow()
+{
+    delete m_db;
+    m_db = nullptr;
 }
 
 void MainWindow::setupUi()
@@ -134,6 +141,13 @@ void MainWindow::loadAllMusic()
     }
 }
 
+QString MainWindow::currentTrackPath() const
+{
+    if (m_currentIndex < 0 || m_currentIndex >= m_playlist.size())
+        return {};
+    return m_playlist[m_currentIndex];
+}
+
 void MainWindow::startCurrentTrack()
 {
     if (m_currentIndex < 0 || m_currentIndex >= m_playlist.size()) {
@@ -149,6 +163,10 @@ void MainWindow::startCurrentTrack()
     updateNowPlayingLabel();
 
     if (m_isPlaying) {
+        // Log a play when we actually start playback
+        if (m_db) {
+            m_db->logPlay(path.toStdString());
+        }
         m_player->play();
     }
 }
@@ -201,6 +219,12 @@ void MainWindow::handleEndOfTrack()
     if (m_playlist.isEmpty())
         return;
 
+    // Natural end of track → finished
+    const QString finishedPath = currentTrackPath();
+    if (m_db && !finishedPath.isEmpty()) {
+        m_db->logFinished(finishedPath.toStdString());
+    }
+
     switch (m_mode) {
     case PlaybackMode::Normal:
         // NORMAL → go to next track in playlist
@@ -216,12 +240,10 @@ void MainWindow::handleEndOfTrack()
         break;
 
     case PlaybackMode::Random:
-        // For now behave like NORMAL; real random tomorrow
         onNext();
         break;
 
     case PlaybackMode::Shuffle:
-        // For now behave like NORMAL; real smart shuffle tomorrow
         onNext();
         break;
     }
@@ -254,8 +276,14 @@ void MainWindow::onPlayPause()
 
         if (m_player->source().isEmpty()) {
             startCurrentTrack();
+        } else {
+            // Resuming an already-loaded track: log play once
+            const QString path = currentTrackPath();
+            if (m_db && !path.isEmpty()) {
+                m_db->logPlay(path.toStdString());
+            }
+            m_player->play();
         }
-        m_player->play();
     } else {
         m_isPlaying = false;
         m_playPauseButton->setText("Play");
@@ -267,35 +295,44 @@ void MainWindow::onNext()
 {
     if (m_playlist.isEmpty()) return;
 
+    // User-initiated skip of current track
+    if (m_isPlaying && m_db) {
+        const QString path = currentTrackPath();
+        if (!path.isEmpty()) {
+            m_db->logSkip(path.toStdString());
+        }
+    }
+
     m_currentIndex++;
     if (m_currentIndex >= m_playlist.size())
         m_currentIndex = 0;
 
     startCurrentTrack();
-    if (m_isPlaying)
-        m_player->play();
 }
 
 void MainWindow::onPrev()
 {
     if (m_playlist.isEmpty()) return;
 
+    // Treat prev as a skip of the current track if playing
+    if (m_isPlaying && m_db) {
+        const QString path = currentTrackPath();
+        if (!path.isEmpty()) {
+            m_db->logSkip(path.toStdString());
+        }
+    }
+
     m_currentIndex--;
     if (m_currentIndex < 0)
         m_currentIndex = m_playlist.size() - 1;
 
     startCurrentTrack();
-    if (m_isPlaying)
-        m_player->play();
 }
 
 void MainWindow::onSeek(int value)
 {
-    if (m_player->duration() <= 0)
-        return;
-
-    qint64 pos = static_cast<qint64>(m_player->duration() * (value / 100.0));
-    m_player->setPosition(pos);
+    // Not wired yet (no slider)
+    Q_UNUSED(value);
 }
 
 void MainWindow::onVolumeChange(int value)
